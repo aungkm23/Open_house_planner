@@ -1,6 +1,11 @@
 from datetime import datetime
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+from dotenv import load_dotenv
+
+import geocoder
+
+load_dotenv()
 
 def get_current_minutes():
     """Gets the current time and converts it to minutes from midnight."""
@@ -9,35 +14,55 @@ def get_current_minutes():
     current_minutes = (now.hour * 60) + now.minute
     return current_minutes
 
-def create_data_model():
-    """Stores the data for the open house routing problem."""
+def parse_time_string(time_str):
+    """Converts a time string like '14:00' to minutes from midnight."""
+    hours, minutes = map(int, time_str.split(':'))
+    return hours * 60 + minutes
+
+def create_data_model(user_inputs, current_location):
+    """Stores the data for the open house routing problem based on user inputs."""
     data = {}
     current_time_mins = get_current_minutes()
 
-    data['time_matrix'] = [
-        [0, 15, 20, 10],  # From Current Location
-        [15, 0, 12, 25],  # From House 1
-        [20, 12, 0, 18],  # From House 2
-        [10, 25, 18, 0],  # From House 3
-    ]
+    addresses = [current_location] + [item['address'] for item in user_inputs]
+
+    # 1. Travel Time Matrix
+    data['time_matrix'] = geocoder.get_distance_matrix(addresses)
+    if not data['time_matrix']:
+        raise ValueError("Could not get distance matrix. Please check your addresses or API key.")
 
     # 2. Open House Time Windows
-    data['time_windows'] = [
-        # DYNAMIC START: The user cannot start the route before "right now"
-        (current_time_mins, 1440), # 0: Current Location (Available from NOW until end of day)
-        (780, 900),   # 1: House 1 (Open 1:00 PM - 3:00 PM)
-        (840, 960),   # 2: House 2 (Open 2:00 PM - 4:00 PM)
-        (810, 870),   # 3: House 3 (Open 1:30 PM - 2:30 PM)
-    ]
+    time_windows = [(current_time_mins, 1440)] # 0: Current Location (Available from NOW until end of day)
 
-    data['service_time'] = [0, 30, 30, 30]
+    for item in user_inputs:
+        start_mins = parse_time_string(item['start_time'])
+        end_mins = parse_time_string(item['end_time'])
+        time_windows.append((start_mins, end_mins))
+
+    data['time_windows'] = time_windows
+
+    # 3. Service Time
+    # Assuming 0 service time at current location, and 30 minutes at each house
+    data['service_time'] = [0] + [30] * len(user_inputs)
+
     data['num_vehicles'] = 1
     data['depot'] = 0
     return data
 
 def main():
-    # Instantiate the data problem.
-    data = create_data_model()
+    # Sample Mock Inputs. In a real application, these will be passed directly from the frontend/scraper
+    user_inputs = [
+        {"address": "756 Spadina Avenue, Toronto, ON", "start_time": "13:00", "end_time": "15:00"},
+        {"address": "123 Main St, Toronto, ON", "start_time": "14:00", "end_time": "16:00"},
+        {"address": "456 King St W, Toronto, ON", "start_time": "13:30", "end_time": "14:30"}
+    ]
+    current_location = "CN Tower, Toronto, ON"
+
+    try:
+        data = create_data_model(user_inputs, current_location)
+    except ValueError as e:
+        print(e)
+        return
 
     # Create the Routing Index Manager and Routing Model.
     manager = pywrapcp.RoutingIndexManager(len(data['time_matrix']), data['num_vehicles'], data['depot'])
@@ -83,7 +108,7 @@ def main():
     else:
         print("No solution found! The time windows might be impossible to meet.")
 
-def print_solution(manager, routing, solution, start_time_mins):
+def print_solution(manager, routing, solution):
     """Prints solution to console."""
     print('✅ Optimal Route Found:')
     time_dimension = routing.GetDimensionOrDie('Time')
