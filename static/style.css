@@ -142,6 +142,11 @@ input:focus {
     font-weight: 600;
 }
 
+.houses-actions {
+    display: flex;
+    gap: 8px;
+}
+
 #houses-list {
     display: flex;
     flex-direction: column;
@@ -335,7 +340,69 @@ button {
 }
 
 /* Responsiveness */
+/* Modal styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none !important;
+}
+
+.modal-content {
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal-content h3 {
+    margin-bottom: 8px;
+}
+
+.modal-content p {
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.modal-actions button {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+}
+
+.modal-actions .btn-primary {
+    width: auto;
+}
+
 @media (max-width: 600px) {
+    .houses-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .houses-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .houses-actions button {
+        flex: 1;
+    }
+
     .house-item {
         flex-direction: column;
         align-items: stretch;

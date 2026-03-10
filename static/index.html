@@ -28,7 +28,10 @@
             <div class="houses-section">
                 <div class="houses-header">
                     <h2>Open Houses to Visit</h2>
-                    <button id="add-house-btn" class="btn-secondary">+ Add Property</button>
+                    <div class="houses-actions">
+                        <button id="add-link-btn" class="btn-secondary">+ Add from Link</button>
+                        <button id="add-house-btn" class="btn-secondary">+ Add Property</button>
+                    </div>
                 </div>
                 
                 <div id="houses-list">
@@ -53,6 +56,25 @@
         </section>
 
     </main>
+
+    <!-- Modal for Adding from Link -->
+    <div id="link-modal" class="modal hidden">
+        <div class="modal-content glass">
+            <h3>Add Property from Link</h3>
+            <p>Paste a link from realtor.ca or zillow.</p>
+            <div class="input-group">
+                <input type="text" id="property-link-input" placeholder="https://www.realtor.ca/...">
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-link-btn" class="btn-secondary">Cancel</button>
+                <button id="submit-link-btn" class="btn-primary">
+                    <span class="btn-text">Extract</span>
+                    <span class="loader hidden"></span>
+                </button>
+            </div>
+            <div id="link-error-message" class="error-text hidden"></div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 

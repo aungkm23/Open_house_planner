@@ -36,6 +36,14 @@ class OptimizationResponse(BaseModel):
     total_minutes: int
     route: List[RouteStep]
 
+class ScrapeRequest(BaseModel):
+    url: str
+
+class ScrapeResponse(BaseModel):
+    address: str
+    start_time: str
+    end_time: str
+
 # --- Core Logic ---
 def get_current_minutes():
     """Gets the current time and converts it to minutes from midnight."""
@@ -153,6 +161,16 @@ def solve_routing_problem(data):
 
 
 # --- API Routes ---
+@app.post("/api/scrape", response_model=ScrapeResponse)
+async def scrape_route(request: ScrapeRequest):
+    try:
+        from scraper import scrape_url
+        result = scrape_url(request.url)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 @app.post("/api/optimize", response_model=OptimizationResponse)
 async def optimize_route(request: OptimizationRequest):
     try:

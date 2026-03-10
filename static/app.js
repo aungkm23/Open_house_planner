@@ -2,7 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const housesList = document.getElementById('houses-list');
     const addHouseBtn = document.getElementById('add-house-btn');
+    const addLinkBtn = document.getElementById('add-link-btn');
     const optimizeBtn = document.getElementById('optimize-btn');
+    const linkModal = document.getElementById('link-modal');
+    const cancelLinkBtn = document.getElementById('cancel-link-btn');
+    const submitLinkBtn = document.getElementById('submit-link-btn');
+    const propertyLinkInput = document.getElementById('property-link-input');
+    const linkErrorMessage = document.getElementById('link-error-message');
     const resultSection = document.getElementById('result-section');
     const errorMessage = document.getElementById('error-message');
     
@@ -22,7 +28,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event Listeners
     addHouseBtn.addEventListener('click', () => addHouseInput("", "13:00", "15:00"));
+
+    addLinkBtn.addEventListener('click', () => {
+        linkModal.classList.remove('hidden');
+        propertyLinkInput.value = '';
+        linkErrorMessage.classList.add('hidden');
+        propertyLinkInput.focus();
+    });
+
+    cancelLinkBtn.addEventListener('click', () => {
+        linkModal.classList.add('hidden');
+    });
+
+    submitLinkBtn.addEventListener('click', handleScrapeLink);
+
     optimizeBtn.addEventListener('click', handleOptimize);
+
+    async function handleScrapeLink() {
+        const url = propertyLinkInput.value.trim();
+        if (!url) {
+            linkErrorMessage.textContent = "Please enter a valid link.";
+            linkErrorMessage.classList.remove('hidden');
+            return;
+        }
+
+        const btnText = submitLinkBtn.querySelector('.btn-text');
+        const loader = submitLinkBtn.querySelector('.loader');
+
+        submitLinkBtn.disabled = true;
+        btnText.classList.add('hidden');
+        loader.classList.remove('hidden');
+        linkErrorMessage.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/scrape', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to extract property details.");
+            }
+
+            const data = await response.json();
+            addHouseInput(data.address, data.start_time, data.end_time);
+            linkModal.classList.add('hidden');
+        } catch (error) {
+            linkErrorMessage.textContent = error.message;
+            linkErrorMessage.classList.remove('hidden');
+        } finally {
+            submitLinkBtn.disabled = false;
+            btnText.classList.remove('hidden');
+            loader.classList.add('hidden');
+        }
+    }
 
     function addHouseInput(address = "", start = "13:00", end = "15:00") {
         const item = document.createElement('div');
