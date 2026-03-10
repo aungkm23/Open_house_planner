@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open House Route Planner</title>
+    <!-- Modern Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="background-animation"></div>
+
+    <main class="container">
+        <header>
+            <h1>Open House Planner</h1>
+            <p>Optimize your viewing schedule and find the fastest route.</p>
+        </header>
+
+        <section class="planner-card glass">
+            
+            <div class="input-group">
+                <label for="current-location">Starting Location</label>
+                <input type="text" id="current-location" placeholder="e.g. CN Tower, Toronto, ON" value="CN Tower, Toronto, ON">
+            </div>
+
+            <div class="houses-section">
+                <div class="houses-header">
+                    <h2>Open Houses to Visit</h2>
+                    <button id="add-house-btn" class="btn-secondary">+ Add Property</button>
+                </div>
+                
+                <div id="houses-list">
+                    <!-- Dynamic inputs will be inserted here -->
+                </div>
+            </div>
+
+            <button id="optimize-btn" class="btn-primary">
+                <span class="btn-text">Optimize Route</span>
+                <span class="loader hidden"></span>
+            </button>
+            <div id="error-message" class="error-text hidden"></div>
+        </section>
+
+        <section id="result-section" class="result-card glass hidden">
+            <h2>Optimal Route Found <span class="badge">✨</span></h2>
+            <p id="total-time-display" class="total-time">Total Time: <span>-</span></p>
+            
+            <div class="timeline" id="route-timeline">
+                <!-- Route steps will be dynamically inserted here -->
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/static/app.js"></script>
+
+</body>
+</html>
