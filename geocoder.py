@@ -10,12 +10,9 @@ def get_distance_matrix(addresses):
     if not api_key:
         print("Warning: GOOGLE_MAPS_API_KEY not found. Falling back to mock data.")
         # Fallback dummy data if no API key is provided
-        return [
-            [0, 15, 20, 10],
-            [15, 0, 12, 25],
-            [20, 12, 0, 18],
-            [10, 25, 18, 0],
-        ]
+        # Dynamic dummy data based on length
+        size = len(addresses)
+        return [[15 if i != j else 0 for j in range(size)] for i in range(size)]
 
     gmaps = googlemaps.Client(key=api_key)
 
