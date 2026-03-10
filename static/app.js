@@ -1,137 +1,11 @@
-let map;
-let directionsService;
-let directionsRenderer;
-let API_KEY = "";
-
-// Map Initialization
-async function initMapScript() {
-    try {
-        const response = await fetch('/api/maps-key');
-        const data = await response.json();
-        API_KEY = data.api_key;
-
-        if (!API_KEY) {
-            console.warn("No Google Maps API Key provided. Map will not load.");
-            document.getElementById('map').innerHTML = "<div style='padding:40px;text-align:center;color:var(--text-muted);'>Map unavailable (No API key).</div>";
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
-        script.defer = true;
-        document.head.appendChild(script);
-    } catch (err) {
-        console.error("Failed to load map key", err);
-    }
-}
-
-window.initMap = function() {
-    map = new google.maps.Map(document.getElementById('map'), {
-        center: {lat: 43.651070, lng: -79.347015}, // Default to Toronto
-        zoom: 12,
-        styles: [
-            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-            {
-              featureType: "administrative.locality",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#d59563" }],
-            },
-            {
-              featureType: "poi",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#d59563" }],
-            },
-            {
-              featureType: "poi.park",
-              elementType: "geometry",
-              stylers: [{ color: "#263c3f" }],
-            },
-            {
-              featureType: "poi.park",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#6b9a76" }],
-            },
-            {
-              featureType: "road",
-              elementType: "geometry",
-              stylers: [{ color: "#38414e" }],
-            },
-            {
-              featureType: "road",
-              elementType: "geometry.stroke",
-              stylers: [{ color: "#212a37" }],
-            },
-            {
-              featureType: "road",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#9ca5b3" }],
-            },
-            {
-              featureType: "road.highway",
-              elementType: "geometry",
-              stylers: [{ color: "#746855" }],
-            },
-            {
-              featureType: "road.highway",
-              elementType: "geometry.stroke",
-              stylers: [{ color: "#1f2835" }],
-            },
-            {
-              featureType: "road.highway",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#f3d19c" }],
-            },
-            {
-              featureType: "transit",
-              elementType: "geometry",
-              stylers: [{ color: "#2f3948" }],
-            },
-            {
-              featureType: "transit.station",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#d59563" }],
-            },
-            {
-              featureType: "water",
-              elementType: "geometry",
-              stylers: [{ color: "#17263c" }],
-            },
-            {
-              featureType: "water",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#515c6d" }],
-            },
-            {
-              featureType: "water",
-              elementType: "labels.text.stroke",
-              stylers: [{ color: "#17263c" }],
-            },
-        ],
-    });
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        polylineOptions: {
-            strokeColor: "#6366f1", // Match primary theme color
-            strokeWeight: 5
-        }
-    });
-};
-
-
 document.addEventListener('DOMContentLoaded', () => {
-
-    // Initialize Google Maps script
-    initMapScript();
-
+    
     const housesList = document.getElementById('houses-list');
     const addHouseBtn = document.getElementById('add-house-btn');
     const optimizeBtn = document.getElementById('optimize-btn');
     const resultSection = document.getElementById('result-section');
     const errorMessage = document.getElementById('error-message');
-
+    
     // UI Elements for loader
     const btnText = optimizeBtn.querySelector('.btn-text');
     const loader = optimizeBtn.querySelector('.loader');
@@ -153,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function addHouseInput(address = "", start = "13:00", end = "15:00") {
         const item = document.createElement('div');
         item.className = 'house-item';
-
+        
         item.innerHTML = `
             <div class="input-group flex-grow">
                 <label>Address</label>
@@ -182,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleOptimize() {
         const currentLocation = document.getElementById('current-location').value;
         const houseElements = document.querySelectorAll('.house-item');
-
+        
         // Collect Data
         const openHouses = [];
         let hasError = false;
@@ -239,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             renderRoute(result);
-
+            
         } catch (error) {
             showError(error.message);
         } finally {
@@ -249,14 +123,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRoute(data) {
         document.getElementById('total-time-display').innerHTML = `Total Time: <span>${data.total_minutes} minutes</span> <span style="font-size:0.8rem; color:var(--text-muted); font-weight:400; margin-left:8px;">(Including 30 min viewings)</span>`;
-
+        
         const timeline = document.getElementById('route-timeline');
         timeline.innerHTML = '';
 
         data.route.forEach((step, index) => {
             const stepDiv = document.createElement('div');
             stepDiv.className = `timeline-step ${step.is_start || step.is_end ? 'start-end' : ''}`;
-
+            
             let label = '';
             if (step.is_start) label = 'Start location';
             else if (step.is_end) label = 'Return to start';
@@ -271,45 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         resultSection.classList.remove('hidden');
-
+        
         // Smooth scroll to results
         setTimeout(() => {
             resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 100);
-
-        // Draw Map Route
-        drawMapRoute(data.route);
-    }
-
-    function drawMapRoute(routeData) {
-        if (!API_KEY || !directionsService) return;
-
-        if (routeData.length < 2) return;
-
-        const origin = routeData[0].address;
-        const destination = routeData[routeData.length - 1].address;
-        const waypoints = [];
-
-        for (let i = 1; i < routeData.length - 1; i++) {
-            waypoints.push({
-                location: routeData[i].address,
-                stopover: true
-            });
-        }
-
-        directionsService.route({
-            origin: origin,
-            destination: destination,
-            waypoints: waypoints,
-            optimizeWaypoints: false, // We already optimized the order!
-            travelMode: 'DRIVING'
-        }, (response, status) => {
-            if (status === 'OK') {
-                directionsRenderer.setDirections(response);
-            } else {
-                console.error('Directions request failed due to ' + status);
-            }
-        });
     }
 
     function setLoading(isLoading) {

@@ -122,12 +122,12 @@ def solve_routing_problem(data):
     # Extract Route
     route = []
     index = routing.Start(0)
-
+    
     while not routing.IsEnd(index):
         time_var = time_dimension.CumulVar(index)
         node = manager.IndexToNode(index)
         min_time = solution.Min(time_var)
-
+        
         route.append(RouteStep(
             location_index=node,
             address=data['addresses'][node],
@@ -153,19 +153,15 @@ def solve_routing_problem(data):
 
 
 # --- API Routes ---
-@app.get("/api/maps-key")
-def get_maps_key():
-    return {"api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
-
 @app.post("/api/optimize", response_model=OptimizationResponse)
 async def optimize_route(request: OptimizationRequest):
     try:
         data = create_data_model(request.open_houses, request.current_location)
         result = solve_routing_problem(data)
-
+        
         if not result:
             raise HTTPException(status_code=400, detail="No valid route found. Time windows might be impossible to meet.")
-
+            
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
