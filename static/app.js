@@ -12,6 +12,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultSection = document.getElementById('result-section');
     const errorMessage = document.getElementById('error-message');
     
+    // Map Variables
+    let map;
+    let markers = [];
+    let routeLine = null;
+
+    // Initialize map
+    initMap();
+
+    function initMap() {
+        // Default center (Toronto roughly)
+        map = L.map('map').setView([43.651070, -79.347015], 13);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+    }
+    
     // UI Elements for loader
     const btnText = optimizeBtn.querySelector('.btn-text');
     const loader = optimizeBtn.querySelector('.loader');
@@ -181,13 +200,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderRoute(data) {
+    async function geocodeAddress(address) {
+        // Quick local Nominatim check to translate addresses to lat/lon for the Map
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+            }
+        } catch (e) {
+            console.warn("Geocoding failed for: ", address);
+        }
+        return null;
+    }
+
+    async function renderRoute(data) {
         document.getElementById('total-time-display').innerHTML = `Total Time: <span>${data.total_minutes} minutes</span> <span style="font-size:0.8rem; color:var(--text-muted); font-weight:400; margin-left:8px;">(Including 30 min viewings)</span>`;
         
         const timeline = document.getElementById('route-timeline');
         timeline.innerHTML = '';
 
-        data.route.forEach((step, index) => {
+        // Clean up previous map state
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        if (routeLine) {
+            map.removeLayer(routeLine);
+        }
+
+        let routeCoordinates = [];
+
+        for (let index = 0; index < data.route.length; index++) {
+            const step = data.route[index];
+
+            // Render Timeline
             const stepDiv = document.createElement('div');
             stepDiv.className = `timeline-step ${step.is_start || step.is_end ? 'start-end' : ''}`;
             
@@ -202,7 +248,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="step-label">${label}</div>
             `;
             timeline.appendChild(stepDiv);
-        });
+
+            // Let's geocode to plot on Map
+            // Optimization: Since 'return to start' is the same address as 'start location', 
+            // no need to re-geocode the final step if it's identical
+            if (step.is_end) {
+                if (routeCoordinates.length > 0) {
+                    routeCoordinates.push(routeCoordinates[0]); // Loop back
+                }
+                continue;
+            }
+
+            const latlng = await geocodeAddress(step.address);
+            if (latlng) {
+                routeCoordinates.push(latlng);
+                
+                // Create custom icons depending on type
+                let markerColor = step.is_start ? '#8b5cf6' : '#6366f1';
+                
+                const htmlIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color:${markerColor}; width:30px; height:30px; border-radius:15px; display:flex; justify-content:center; align-items:center; color:white; font-weight:bold; border: 3px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">${step.is_start ? 'S' : index}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker(latlng, { icon: htmlIcon }).addTo(map);
+                marker.bindPopup(`<b>${step.address}</b><br>Arr: ${step.arrival_time}`);
+                markers.push(marker);
+            }
+        }
+
+        // Draw line between markers on map
+        if (routeCoordinates.length > 1) {
+            routeLine = L.polyline(routeCoordinates, {
+                color: '#8b5cf6', 
+                weight: 4, 
+                opacity: 0.8, 
+                dashArray: '10, 10'
+            }).addTo(map);
+            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+        }
 
         resultSection.classList.remove('hidden');
         

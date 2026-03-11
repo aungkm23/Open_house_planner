@@ -6,54 +6,63 @@
     <title>Open House Route Planner</title>
     <!-- Modern Font: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
     <div class="background-animation"></div>
 
-    <main class="container">
-        <header>
-            <h1>Open House Planner</h1>
-            <p>Optimize your viewing schedule and find the fastest route.</p>
-        </header>
+    <main class="grid-container">
+        
+        <div class="controls-column">
+            <header>
+                <h1>Open House Planner</h1>
+                <p>Optimize your viewing schedule and find the fastest route.</p>
+            </header>
 
-        <section class="planner-card glass">
-            
-            <div class="input-group">
-                <label for="current-location">Starting Location</label>
-                <input type="text" id="current-location" placeholder="e.g. CN Tower, Toronto, ON" value="CN Tower, Toronto, ON">
-            </div>
+            <section class="planner-card glass">
+                
+                <div class="input-group">
+                    <label for="current-location">Starting Location</label>
+                    <input type="text" id="current-location" placeholder="e.g. CN Tower, Toronto, ON" value="CN Tower, Toronto, ON">
+                </div>
 
-            <div class="houses-section">
-                <div class="houses-header">
-                    <h2>Open Houses to Visit</h2>
-                    <div class="houses-actions">
-                        <button id="add-link-btn" class="btn-secondary">+ Add from Link</button>
-                        <button id="add-house-btn" class="btn-secondary">+ Add Property</button>
+                <div class="houses-section">
+                    <div class="houses-header">
+                        <h2>Open Houses to Visit</h2>
+                        <div class="houses-actions">
+                            <button id="add-link-btn" class="btn-secondary">+ Add from Link</button>
+                            <button id="add-house-btn" class="btn-secondary">+ Add Property</button>
+                        </div>
+                    </div>
+                    
+                    <div id="houses-list">
+                        <!-- Dynamic inputs will be inserted here -->
                     </div>
                 </div>
+
+                <button id="optimize-btn" class="btn-primary">
+                    <span class="btn-text">Optimize Route</span>
+                    <span class="loader hidden"></span>
+                </button>
+                <div id="error-message" class="error-text hidden"></div>
+            </section>
+
+            <section id="result-section" class="result-card glass hidden">
+                <h2>Optimal Route Found <span class="badge">✨</span></h2>
+                <p id="total-time-display" class="total-time">Total Time: <span>-</span></p>
                 
-                <div id="houses-list">
-                    <!-- Dynamic inputs will be inserted here -->
+                <div class="timeline" id="route-timeline">
+                    <!-- Route steps will be dynamically inserted here -->
                 </div>
-            </div>
+            </section>
+        </div>
 
-            <button id="optimize-btn" class="btn-primary">
-                <span class="btn-text">Optimize Route</span>
-                <span class="loader hidden"></span>
-            </button>
-            <div id="error-message" class="error-text hidden"></div>
-        </section>
-
-        <section id="result-section" class="result-card glass hidden">
-            <h2>Optimal Route Found <span class="badge">✨</span></h2>
-            <p id="total-time-display" class="total-time">Total Time: <span>-</span></p>
-            
-            <div class="timeline" id="route-timeline">
-                <!-- Route steps will be dynamically inserted here -->
-            </div>
-        </section>
+        <div class="map-column">
+            <div id="map" class="glass"></div>
+        </div>
 
     </main>
 
@@ -76,6 +85,8 @@
         </div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="/static/app.js"></script>
 
 </body>
