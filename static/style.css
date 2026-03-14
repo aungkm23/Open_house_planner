@@ -29,10 +29,10 @@ body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-dark);
     color: var(--text-main);
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     justify-content: center;
-    overflow-x: hidden;
+    overflow: hidden;
 }
 
 /* Background Animated Gradient Mesh */
@@ -59,21 +59,41 @@ body {
     max-width: 1600px;
     padding: 40px;
     display: grid;
-    grid-template-columns: 800px 1fr;
+    grid-template-columns: minmax(0, 680px) 1fr;
     gap: 40px;
-    align-items: flex-start;
+    align-items: stretch;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .controls-column {
     display: flex;
     flex-direction: column;
     gap: 32px;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 8px;
+    padding-bottom: 40px;
+    /* Custom scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: var(--secondary) transparent;
+}
+
+.controls-column::-webkit-scrollbar {
+    width: 6px;
+}
+
+.controls-column::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.controls-column::-webkit-scrollbar-thumb {
+    background: var(--secondary);
+    border-radius: 3px;
 }
 
 .map-column {
-    position: sticky;
-    top: 40px;
-    height: calc(100vh - 80px);
+    height: 100%;
     width: 100%;
 }
 
@@ -189,7 +209,8 @@ input:focus {
     padding: 20px;
     border-radius: 8px;
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
     align-items: flex-end;
     animation: slideDown 0.3s ease-out forwards;
 }
@@ -199,8 +220,8 @@ input:focus {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.flex-grow { flex-grow: 1; margin-bottom: 0; }
-.time-col { width: 140px; margin-bottom: 0; }
+.flex-grow { flex: 1 1 200px; min-width: 0; margin-bottom: 0; }
+.time-col { flex: 0 0 120px; min-width: 100px; margin-bottom: 0; }
 
 /* Buttons */
 button {
@@ -416,6 +437,33 @@ button {
     width: auto;
 }
 
+@media (max-width: 1100px) {
+    body {
+        height: auto;
+        overflow: auto;
+    }
+
+    .grid-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+        padding: 24px;
+        gap: 24px;
+    }
+
+    .controls-column {
+        height: auto;
+        overflow-y: visible;
+        padding-right: 0;
+        padding-bottom: 0;
+    }
+
+    .map-column {
+        height: 50vh;
+        min-height: 300px;
+    }
+}
+
 @media (max-width: 600px) {
     .houses-header {
         flex-direction: column;
@@ -436,9 +484,10 @@ button {
         flex-direction: column;
         align-items: stretch;
     }
-    
-    .time-col {
-        width: 100%;
+
+    .flex-grow, .time-col {
+        flex: 1 1 100%;
+        min-width: 0;
     }
     
     .btn-remove {
