@@ -24,6 +24,24 @@
 
             <section class="planner-card glass">
                 
+                <div class="availability-section" style="margin-bottom: 20px;">
+                    <div class="date-range-group" style="display: flex; gap: 15px;">
+                        <div class="input-group flex-grow">
+                            <label for="start-date">Start Date</label>
+                            <input type="date" id="start-date">
+                        </div>
+                        <div class="input-group flex-grow">
+                            <label for="end-date">End Date</label>
+                            <input type="date" id="end-date">
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-group" style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="single-day-pref" style="width: auto;">
+                        <label for="single-day-pref" style="margin-bottom: 0;">Put everything in one day?</label>
+                    </div>
+                </div>
+
                 <div class="input-group">
                     <label for="current-location">Starting Location</label>
                     <input type="text" id="current-location" placeholder="e.g. CN Tower, Toronto, ON" value="CN Tower, Toronto, ON">
@@ -51,8 +69,16 @@
             </section>
 
             <section id="result-section" class="result-card glass hidden">
-                <h2>Optimal Route Found <span class="badge">✨</span></h2>
-                <p id="total-time-display" class="total-time">Total Time: <span>-</span></p>
+                <div class="result-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h2>Optimal Route Found <span class="badge">✨</span></h2>
+                        <p id="total-time-display" class="total-time">Total Time: <span>-</span></p>
+                    </div>
+                    <a id="export-gmaps-btn" target="_blank" class="btn-secondary hidden" style="text-decoration: none; padding: 10px 16px;">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="margin-right: 6px; vertical-align: text-bottom;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                        Export to Maps
+                    </a>
+                </div>
                 
                 <div class="timeline" id="route-timeline">
                     <!-- Route steps will be dynamically inserted here -->

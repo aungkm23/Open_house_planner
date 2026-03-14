@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from dotenv import load_dotenv
@@ -18,11 +18,15 @@ app = FastAPI()
 # --- Pydantic Models ---
 class OpenHouseInput(BaseModel):
     address: str
+    date: str
     start_time: str
     end_time: str
 
 class OptimizationRequest(BaseModel):
     current_location: str
+    start_date: str
+    end_date: str
+    single_day_pref: bool
     open_houses: List[OpenHouseInput]
 
 class RouteStep(BaseModel):
@@ -45,25 +49,37 @@ class ScrapeResponse(BaseModel):
     end_time: str
 
 # --- Core Logic ---
-def get_current_minutes():
-    """Gets the current time and converts it to minutes from midnight."""
-    now = datetime.now()
-    return (now.hour * 60) + now.minute
+def get_minutes_from_start(date_str, time_str, start_date_str):
+    """Calculates minutes from midnight of start_date_str."""
+    fmt = "%Y-%m-%d %H:%M"
+    start_dt = datetime.strptime(f"{start_date_str} 00:00", fmt)
+    target_dt = datetime.strptime(f"{date_str} {time_str}", fmt)
+    delta = target_dt - start_dt
+    return int(delta.total_seconds() // 60)
 
-def parse_time_string(time_str):
-    """Converts a time string like '14:00' to minutes from midnight."""
-    hours, minutes = map(int, time_str.split(':'))
-    return hours * 60 + minutes
+def format_minutes_to_datetime(minutes, start_date_str):
+    """Converts minutes back to a datetime string."""
+    fmt = "%Y-%m-%d %H:%M"
+    start_dt = datetime.strptime(f"{start_date_str} 00:00", fmt)
+    target_dt = start_dt + timedelta(minutes=minutes)
+    return target_dt.strftime(fmt)
 
-def format_minutes_to_time(minutes):
-    """Converts minutes from midnight back to 'HH:MM' string."""
-    hours, mins = divmod(minutes, 60)
-    return f"{hours:02d}:{mins:02d}"
-
-def create_data_model(user_inputs, current_location):
+def create_data_model(user_inputs, current_location, start_date, end_date, single_day_pref):
     """Stores the data for the open house routing problem based on user inputs."""
     data = {}
-    current_time_mins = get_current_minutes()
+    
+    fmt = "%Y-%m-%d"
+    s_dt = datetime.strptime(start_date, fmt)
+    e_dt = datetime.strptime(end_date, fmt)
+    num_days = (e_dt - s_dt).days + 1
+    
+    if num_days <= 0:
+        raise ValueError("End Date must be on or after Start Date.")
+        
+    data['num_vehicles'] = num_days
+    data['depot'] = 0
+    data['start_date'] = start_date
+    data['single_day_pref'] = single_day_pref
 
     addresses = [current_location] + [item.address for item in user_inputs]
     data['addresses'] = addresses
@@ -74,21 +90,27 @@ def create_data_model(user_inputs, current_location):
         raise ValueError("Could not get distance matrix. Please check your addresses or API key.")
 
     # 2. Open House Time Windows
-    time_windows = [(current_time_mins, 1440)] # 0: Current Location (Available from NOW until end of day)
-
+    time_windows = []
+    time_windows.append((0, num_days * 1440))  # Depot available at any time
+    
     for item in user_inputs:
-        start_mins = parse_time_string(item.start_time)
-        end_mins = parse_time_string(item.end_time)
-        time_windows.append((start_mins, end_mins))
+        try:
+            start_mins = get_minutes_from_start(item.date, item.start_time, start_date)
+            end_mins = get_minutes_from_start(item.date, item.end_time, start_date)
+            
+            if end_mins < 0 or start_mins > num_days * 1440:
+                raise ValueError(f"Property {item.address} on {item.date} is outside the availability window.")
+            time_windows.append((start_mins, end_mins))
+        except ValueError as e:
+            if "outside the availability window" in str(e):
+                raise
+            raise ValueError(f"Invalid date/time for property {item.address}.")
 
     data['time_windows'] = time_windows
 
     # 3. Service Time
-    # Assuming 0 service time at current location, and 30 minutes at each house
     data['service_time'] = [0] + [30] * len(user_inputs)
 
-    data['num_vehicles'] = 1
-    data['depot'] = 0
     return data
 
 def solve_routing_problem(data):
@@ -105,13 +127,27 @@ def solve_routing_problem(data):
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
     time = 'Time'
+    max_time = data['num_vehicles'] * 1440
     routing.AddDimension(
         transit_callback_index,
-        30,  # allow waiting time
-        1440, # maximum time per vehicle (extended to end of day)
+        1440,  # allow waiting time 
+        max_time, # max time globally
         False,
         time)
     time_dimension = routing.GetDimensionOrDie(time)
+
+    # Restrict vehicles to their respective days
+    for v in range(data['num_vehicles']):
+        day_start = v * 1440
+        day_end = (v + 1) * 1440
+        start_index = routing.Start(v)
+        end_index = routing.End(v)
+        time_dimension.CumulVar(start_index).SetRange(day_start, day_end)
+        time_dimension.CumulVar(end_index).SetRange(day_start, day_end)
+        
+    # If they want everything in a single day, penalize using multiple vehicles
+    if data['single_day_pref']:
+        routing.SetFixedCostOfAllVehicles(1000000)
 
     for location_idx, time_window in enumerate(data['time_windows']):
         if location_idx == data['depot']:
@@ -127,37 +163,50 @@ def solve_routing_problem(data):
     if not solution:
         return None
 
-    # Extract Route
+    # Check if multiple vehicles used when single_day wanted
+    if data['single_day_pref']:
+        used_vehicles = sum(1 for v in range(data['num_vehicles']) if not routing.IsEnd(solution.Value(routing.NextVar(routing.Start(v)))))
+        if used_vehicles > 1:
+            return None 
+
     route = []
-    index = routing.Start(0)
-    
-    while not routing.IsEnd(index):
+    total_active_time = 0
+
+    for vehicle_id in range(data['num_vehicles']):
+        index = routing.Start(vehicle_id)
+        if routing.IsEnd(solution.Value(routing.NextVar(index))):
+            continue
+            
+        while not routing.IsEnd(index):
+            time_var = time_dimension.CumulVar(index)
+            min_time = solution.Min(time_var)
+            node = manager.IndexToNode(index)
+            
+            route.append(RouteStep(
+                location_index=node,
+                address=data['addresses'][node],
+                arrival_time=format_minutes_to_datetime(min_time, data['start_date']),
+                is_start=(node == 0),
+                is_end=False
+            ))
+            index = solution.Value(routing.NextVar(index))
+            
+        # Add return to start node
         time_var = time_dimension.CumulVar(index)
-        node = manager.IndexToNode(index)
         min_time = solution.Min(time_var)
-        
         route.append(RouteStep(
-            location_index=node,
-            address=data['addresses'][node],
-            arrival_time=format_minutes_to_time(min_time),
-            is_start=(node == 0)
+            location_index=0,
+            address=data['addresses'][0],
+            arrival_time=format_minutes_to_datetime(min_time, data['start_date']),
+            is_start=False,
+            is_end=True
         ))
-        index = solution.Value(routing.NextVar(index))
+        
+        actual_start_time = solution.Min(time_dimension.CumulVar(routing.Start(vehicle_id)))
+        actual_end_time = solution.Min(time_dimension.CumulVar(routing.End(vehicle_id)))
+        total_active_time += (actual_end_time - actual_start_time)
 
-    # Add the return to start node
-    time_var = time_dimension.CumulVar(index)
-    min_time = solution.Min(time_var)
-    route.append(RouteStep(
-        location_index=0,
-        address=data['addresses'][0],
-        arrival_time=format_minutes_to_time(min_time),
-        is_end=True
-    ))
-
-    actual_start_time = solution.Min(time_dimension.CumulVar(routing.Start(0)))
-    total_time = solution.Min(time_var) - actual_start_time
-
-    return OptimizationResponse(total_minutes=total_time, route=route)
+    return OptimizationResponse(total_minutes=total_active_time, route=route)
 
 
 # --- API Routes ---
@@ -174,11 +223,17 @@ async def scrape_route(request: ScrapeRequest):
 @app.post("/api/optimize", response_model=OptimizationResponse)
 async def optimize_route(request: OptimizationRequest):
     try:
-        data = create_data_model(request.open_houses, request.current_location)
+        data = create_data_model(
+            request.open_houses, 
+            request.current_location,
+            request.start_date,
+            request.end_date,
+            request.single_day_pref
+        )
         result = solve_routing_problem(data)
         
         if not result:
-            raise HTTPException(status_code=400, detail="No valid route found. Time windows might be impossible to meet.")
+            raise HTTPException(status_code=400, detail="No valid route found. Time windows might be impossible to meet or 'Put everything in one day' cannot be satisfied.")
             
         return result
     except ValueError as e:
@@ -188,7 +243,6 @@ async def optimize_route(request: OptimizationRequest):
 
 
 # Serve static files for frontend
-# Make sure the static directory exists before mounting
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let map;
     let markers = [];
     let routeLine = null;
+    const exportGmapsBtn = document.getElementById('export-gmaps-btn');
 
     // Initialize map
     initMap();
@@ -35,18 +36,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnText = optimizeBtn.querySelector('.btn-text');
     const loader = optimizeBtn.querySelector('.loader');
 
+    // Helper for dates
+    function getUpcomingDay(dayOfWeek) {
+        const d = new Date();
+        const diff = (dayOfWeek + 7 - d.getDay()) % 7;
+        d.setDate(d.getDate() + (diff === 0 ? 0 : diff));
+        return d.toISOString().split('T')[0];
+    }
+    const saturdayDate = getUpcomingDay(6);
+    const sundayDate = getUpcomingDay(0);
+
+    // Set default user availability window
+    document.getElementById('start-date').value = saturdayDate;
+    document.getElementById('end-date').value = sundayDate;
+
     // Initial Mock Data to populate
     const initialData = [
-        { address: "756 Spadina Avenue, Toronto, ON", start: "13:00", end: "15:00" },
-        { address: "123 Main St, Toronto, ON", start: "14:00", end: "16:00" },
-        { address: "456 King St W, Toronto, ON", start: "13:30", end: "14:30" }
+        { address: "756 Spadina Avenue, Toronto, ON", date: saturdayDate, start: "13:00", end: "15:00" },
+        { address: "123 Main St, Toronto, ON", date: saturdayDate, start: "14:00", end: "16:00" },
+        { address: "456 King St W, Toronto, ON", date: sundayDate, start: "13:30", end: "14:30" }
     ];
 
     // Initialize list
-    initialData.forEach(data => addHouseInput(data.address, data.start, data.end));
+    initialData.forEach(data => addHouseInput(data.address, data.date, data.start, data.end));
+
+    // Plot initial locations on map
+    plotUnoptimizedLocations();
 
     // Event Listeners
-    addHouseBtn.addEventListener('click', () => addHouseInput("", "13:00", "15:00"));
+    addHouseBtn.addEventListener('click', () => {
+        addHouseInput("", saturdayDate, "13:00", "15:00");
+    });
+
+    document.getElementById('current-location').addEventListener('change', plotUnoptimizedLocations);
 
     addLinkBtn.addEventListener('click', () => {
         linkModal.classList.remove('hidden');
@@ -91,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            addHouseInput(data.address, data.start_time, data.end_time);
+            addHouseInput(data.address, saturdayDate, data.start_time, data.end_time);
             linkModal.classList.add('hidden');
         } catch (error) {
             linkErrorMessage.textContent = error.message;
@@ -103,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addHouseInput(address = "", start = "13:00", end = "15:00") {
+    function addHouseInput(address = "", date = "", start = "13:00", end = "15:00") {
         const item = document.createElement('div');
         item.className = 'house-item';
         
@@ -111,6 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="input-group flex-grow">
                 <label>Address</label>
                 <input type="text" class="house-address" placeholder="123 Example St" value="${address}">
+            </div>
+            <div class="input-group time-col">
+                <label>Date</label>
+                <input type="date" class="house-date" value="${date}">
             </div>
             <div class="input-group time-col">
                 <label>Opens</label>
@@ -127,56 +153,82 @@ document.addEventListener('DOMContentLoaded', () => {
 
         item.querySelector('.btn-remove').addEventListener('click', () => {
             item.remove();
+            plotUnoptimizedLocations();
         });
 
+        item.querySelector('.house-address').addEventListener('change', plotUnoptimizedLocations);
+
         housesList.appendChild(item);
+        if (address) {
+            plotUnoptimizedLocations();
+        }
     }
 
-    async function handleOptimize() {
+    function collectFormData() {
         const currentLocation = document.getElementById('current-location').value;
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const singleDayPref = document.getElementById('single-day-pref').checked;
         const houseElements = document.querySelectorAll('.house-item');
         
-        // Collect Data
         const openHouses = [];
         let hasError = false;
 
-        if (!currentLocation) hasError = true;
+        if (!currentLocation || !startDate || !endDate) hasError = true;
 
         houseElements.forEach(item => {
             const address = item.querySelector('.house-address').value;
+            const houseDate = item.querySelector('.house-date').value;
             const start = item.querySelector('.house-start').value;
             const end = item.querySelector('.house-end').value;
 
-            if (!address || !start || !end) {
+            if (!address || !houseDate || !start || !end) {
                 hasError = true;
             } else {
                 openHouses.push({
                     address: address,
+                    date: houseDate,
                     start_time: start,
                     end_time: end
                 });
             }
         });
 
-        if (hasError) {
+        return {
+            current_location: currentLocation,
+            start_date: startDate,
+            end_date: endDate,
+            single_day_pref: singleDayPref,
+            open_houses: openHouses,
+            hasError: hasError
+        };
+    }
+
+    async function handleOptimize() {
+        const data = collectFormData();
+
+        if (data.hasError) {
             showError("Please fill out all location and time fields.");
             return;
         }
 
-        if (openHouses.length === 0) {
+        if (data.open_houses.length === 0) {
             showError("Please add at least one open house to visit.");
             return;
         }
 
-        // Prepare Request
         const requestData = {
-            current_location: currentLocation,
-            open_houses: openHouses
+            current_location: data.current_location,
+            start_date: data.start_date,
+            end_date: data.end_date,
+            single_day_pref: data.single_day_pref,
+            open_houses: data.open_houses
         };
 
         setLoading(true);
         hideError();
         resultSection.classList.add('hidden');
+        exportGmapsBtn.classList.add('hidden');
 
         try {
             const response = await fetch('/api/optimize', {
@@ -215,20 +267,75 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    function clearMap() {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        if (routeLine) {
+            map.removeLayer(routeLine);
+            routeLine = null;
+        }
+    }
+
+    async function plotUnoptimizedLocations() {
+        // Debounce slightly if called multiple times rapidly via input
+        clearTimeout(plotUnoptimizedLocations.timeout);
+        plotUnoptimizedLocations.timeout = setTimeout(async () => {
+            
+            const formData = collectFormData();
+            if (formData.hasError) return; // Don't try plotting if incomplete
+
+            clearMap();
+
+            const allAddresses = [formData.current_location, ...formData.open_houses.map(h => h.address)];
+            let boundsData = [];
+
+            for (let i = 0; i < allAddresses.length; i++) {
+                const address = allAddresses[i];
+                if (!address) continue;
+
+                const latlng = await geocodeAddress(address);
+                if (latlng) {
+                    boundsData.push(latlng);
+                    
+                    const isStart = (i === 0);
+                    const markerColor = isStart ? '#8b5cf6' : '#94a3b8'; // Purple for start, subtle gray for others
+                    const iconText = isStart ? 'S' : '';
+
+                    const htmlIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="background-color:${markerColor}; width:24px; height:24px; border-radius:12px; display:flex; justify-content:center; align-items:center; color:white; font-size:12px; font-weight:bold; border: 2px solid #1e293b; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${iconText}</div>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+
+                    const marker = L.marker(latlng, { icon: htmlIcon }).addTo(map);
+                    marker.bindPopup(`<b>${isStart ? 'Starts at: ' : 'Open House: '}${address}</b>`);
+                    markers.push(marker);
+                }
+            }
+
+            if (boundsData.length > 0) {
+                const bounds = L.latLngBounds(boundsData);
+                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+            }
+
+        }, 500); // 500ms debounce
+    }
+
     async function renderRoute(data) {
         document.getElementById('total-time-display').innerHTML = `Total Time: <span>${data.total_minutes} minutes</span> <span style="font-size:0.8rem; color:var(--text-muted); font-weight:400; margin-left:8px;">(Including 30 min viewings)</span>`;
         
         const timeline = document.getElementById('route-timeline');
         timeline.innerHTML = '';
 
-        // Clean up previous map state
-        markers.forEach(m => map.removeLayer(m));
-        markers = [];
-        if (routeLine) {
-            map.removeLayer(routeLine);
-        }
+        clearMap();
 
         let routeCoordinates = [];
+        
+        // GMaps URL generation Variables
+        let gmapsOrigin = "";
+        let gmapsDestination = "";
+        let gmapsWaypoints = [];
 
         for (let index = 0; index < data.route.length; index++) {
             const step = data.route[index];
@@ -248,6 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="step-label">${label}</div>
             `;
             timeline.appendChild(stepDiv);
+
+            // Populate GMaps Variables
+            if (step.is_start) {
+                gmapsOrigin = encodeURIComponent(step.address);
+            } else if (step.is_end) {
+                gmapsDestination = encodeURIComponent(step.address);
+            } else {
+                gmapsWaypoints.push(encodeURIComponent(step.address));
+            }
 
             // Let's geocode to plot on Map
             // Optimization: Since 'return to start' is the same address as 'start location', 
@@ -279,6 +395,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Generate Google Maps Link
+        if (gmapsOrigin && gmapsDestination) {
+            let gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${gmapsOrigin}&destination=${gmapsDestination}`;
+            if (gmapsWaypoints.length > 0) {
+                gmapsUrl += `&waypoints=${gmapsWaypoints.join('|')}`;
+            }
+            exportGmapsBtn.href = gmapsUrl;
+            exportGmapsBtn.classList.remove('hidden');
+        }
+
         // Draw line between markers on map
         if (routeCoordinates.length > 1) {
             routeLine = L.polyline(routeCoordinates, {
@@ -287,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 opacity: 0.8, 
                 dashArray: '10, 10'
             }).addTo(map);
-            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+            map.fitBounds(routeLine.getBounds(), { padding: [50, 50], maxZoom: 15 });
         }
 
         resultSection.classList.remove('hidden');
